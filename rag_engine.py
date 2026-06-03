@@ -1,4 +1,6 @@
 import os
+import re
+import json
 from typing import List, Dict, Any, Tuple
 try:
     from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -31,7 +33,6 @@ class RAGEngine:
         documents = loader.load()
         
         # 2. Split the text into manageable chunks
-        # Chunk size is 1000 characters with 200 overlap to maintain context between split boundaries
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000, 
             chunk_overlap=200,
@@ -40,7 +41,6 @@ class RAGEngine:
         chunks = text_splitter.split_documents(documents)
         
         # 3. Store the chunk embeddings in ChromaDB (persistent locally)
-        # Using a unique collection name based on the file name or global
         self.vector_store = Chroma.from_documents(
             documents=chunks,
             embedding=self.embeddings,
@@ -49,9 +49,33 @@ class RAGEngine:
         
         return len(chunks)
 
-    def retrieve_context(self, query: str, k: int = 3) -> List[Tuple[Any, float]]:
+    def get_indexed_files(self) -> List[str]:
         """
-        Searches the Vector DB for the top 'k' most relevant document sections.
+        Queries ChromaDB metadata and retrieves a unique list of base file names indexed in the local database.
+        """
+        if not self.vector_store:
+            if os.path.exists(DB_DIR):
+                self.vector_store = Chroma(
+                    persist_directory=DB_DIR,
+                    embedding_function=self.embeddings
+                )
+            else:
+                return []
+                
+        try:
+            results = self.vector_store.get()
+            metadatas = results.get("metadatas", [])
+            sources = set()
+            for meta in metadatas:
+                if meta and "source" in meta:
+                    sources.add(os.path.basename(meta["source"]))
+            return list(sources)
+        except Exception:
+            return []
+
+    def retrieve_context(self, query: str, k: int = 3, selected_sources: List[str] = None) -> List[Tuple[Any, float]]:
+        """
+        Searches the Vector DB for the top 'k' most relevant document sections, optionally filtered by source names.
         """
         if not self.vector_store:
             # Try reloading from disk if it was already created previously
@@ -63,14 +87,23 @@ class RAGEngine:
             else:
                 return []
                 
-        # Perform similarity search with relevance scores
-        results = self.vector_store.similarity_search_with_relevance_scores(query, k=k)
-        return results
+        # Perform similarity search with relevance scores. Retrieve more if filtering is applied.
+        search_k = k * 4 if selected_sources is not None else k
+        results = self.vector_store.similarity_search_with_relevance_scores(query, k=search_k)
+        
+        if selected_sources is not None:
+            filtered_results = []
+            for doc, score in results:
+                source_name = os.path.basename(doc.metadata.get("source", ""))
+                if source_name in selected_sources:
+                    filtered_results.append((doc, score))
+            return filtered_results[:k]
+            
+        return results[:k]
 
-    def generate_answer(self, query: str, context_docs: List[Any], api_key: str = None) -> Tuple[str, List[Dict[str, Any]]]:
+    def generate_answer(self, query: str, context_docs: List[Any], api_key: str = None, model_name: str = "gemini-2.5-flash") -> Tuple[str, List[Dict[str, Any]]]:
         """
-        Generates a natural language answer based ON the retrieved context documents.
-        Supports both Gemini API and a rule-based mock engine for offline testing.
+        Generates a natural language answer based ON the retrieved context documents using the selected model.
         """
         # Format the context snippets and citations
         context_text = ""
@@ -89,7 +122,7 @@ class RAGEngine:
             })
             
         if not context_text:
-            return "No matching context found. Please upload a document first.", []
+            return "No matching context found. Please select your active documents or upload a document first.", []
 
         # Prompt engineering: Force the LLM to only answer using the retrieved context
         prompt = f"""
@@ -113,8 +146,7 @@ ANSWER:
         if api_key:
             try:
                 genai.configure(api_key=api_key)
-                # Using gemini-2.5-flash for speed and low cost
-                model = genai.GenerativeModel('gemini-2.5-flash')
+                model = genai.GenerativeModel(model_name)
                 response = model.generate_content(prompt)
                 return response.text, citations
             except Exception as e:
@@ -125,7 +157,7 @@ ANSWER:
                 "⚠️ **Running in Offline/Local Mode (No Gemini API Key)**\n\n"
                 "To get full generative AI responses, please add your Gemini API Key in the sidebar.\n\n"
                 "**Relevant segments found in your document:**\n\n"
-                + "\n\n".join([f"**From page {c['page']}:**\n_{doc.page_content}_" for c, doc in zip(citations, context_docs)])
+                + "\n\n".join([f"**From page {c['page']} ({c['source']}):**\n_{doc.page_content}_" for c, doc in zip(citations, context_docs)])
             )
             return local_response, citations
 
@@ -134,10 +166,11 @@ ANSWER:
         summary = "Based on the matched sections:\n"
         for doc in context_docs:
             page = doc.metadata.get("page", 0) + 1
-            summary += f"- [Page {page}]: {doc.page_content[:150]}...\n"
+            source = os.path.basename(doc.metadata.get("source", "Document"))
+            summary += f"- [Page {page} of {source}]: {doc.page_content[:150]}...\n"
         return summary
 
-    def generate_summary(self, api_key: str = None) -> str:
+    def generate_summary(self, api_key: str = None, model_name: str = "gemini-2.5-flash") -> str:
         """
         Retrieves the top segments of the loaded document and generates a structured summary.
         """
@@ -161,7 +194,8 @@ ANSWER:
             context_text = ""
             for text, meta in zip(documents, metadatas):
                 page = meta.get("page", 0) + 1
-                context_text += f"\n[Page: {page}]\n{text}\n"
+                source = os.path.basename(meta.get("source", "Document"))
+                context_text += f"\n[File: {source}, Page: {page}]\n{text}\n"
         except Exception as e:
             return f"Error retrieving document text: {str(e)}"
             
@@ -184,7 +218,7 @@ DOCUMENT CONTENT:
         if api_key:
             try:
                 genai.configure(api_key=api_key)
-                model = genai.GenerativeModel('gemini-2.5-flash')
+                model = genai.GenerativeModel(model_name)
                 response = model.generate_content(prompt)
                 return response.text
             except Exception as e:
@@ -194,10 +228,10 @@ DOCUMENT CONTENT:
             return (
                 "⚠️ **Offline Mode (No API Key)**\n\n"
                 "Here are the first few sentences extracted from your document:\n\n"
-                + "\n\n".join([f"**Page {meta.get('page', 0)+1}:** {text[:150]}..." for text, meta in zip(documents[:3], metadatas[:3])])
+                + "\n\n".join([f"**File {meta.get('source', 'Doc')}, Page {meta.get('page', 0)+1}:** {text[:150]}..." for text, meta in zip(documents[:3], metadatas[:3])])
             )
 
-    def generate_quiz(self, api_key: str = None) -> str:
+    def generate_quiz(self, api_key: str = None, model_name: str = "gemini-2.5-flash") -> str:
         """
         Retrieves segments of the loaded document and designs an interactive 3-question MCQ quiz.
         """
@@ -221,7 +255,8 @@ DOCUMENT CONTENT:
             context_text = ""
             for text, meta in zip(documents, metadatas):
                 page = meta.get("page", 0) + 1
-                context_text += f"\n[Page: {page}]\n{text}\n"
+                source = os.path.basename(meta.get("source", "Document"))
+                context_text += f"\n[File: {source}, Page: {page}]\n{text}\n"
         except Exception as e:
             return f"Error retrieving document text: {str(e)}"
             
@@ -250,7 +285,7 @@ DOCUMENT CONTENT:
         if api_key:
             try:
                 genai.configure(api_key=api_key)
-                model = genai.GenerativeModel('gemini-2.5-flash')
+                model = genai.GenerativeModel(model_name)
                 response = model.generate_content(prompt)
                 return response.text
             except Exception as e:
@@ -261,3 +296,149 @@ DOCUMENT CONTENT:
                 "Please add a Gemini API Key in the sidebar to generate custom quizzes based on your document content!"
             )
 
+    def generate_flashcards(self, api_key: str = None, model_name: str = "gemini-2.5-flash") -> List[Dict[str, str]]:
+        """
+        Retrieves document content and generates 5 key concept study flashcards as a list of dicts.
+        """
+        if not self.vector_store:
+            if os.path.exists(DB_DIR):
+                self.vector_store = Chroma(
+                    persist_directory=DB_DIR,
+                    embedding_function=self.embeddings
+                )
+            else:
+                return []
+                
+        try:
+            results = self.vector_store.get(limit=5)
+            documents = results.get("documents", [])
+            metadatas = results.get("metadatas", [])
+            
+            if not documents:
+                return []
+                
+            context_text = ""
+            for text, meta in zip(documents, metadatas):
+                page = meta.get("page", 0) + 1
+                source = os.path.basename(meta.get("source", "Document"))
+                context_text += f"\n[File: {source}, Page: {page}]\n{text}\n"
+        except Exception:
+            return []
+            
+        prompt = f"""
+You are an expert educator. Analyze the provided document content and extract exactly 5 key concept study flashcards.
+For each flashcard, define a key term, question, or formula as the "front", and its concise definition, explanation, or answer as the "back".
+
+Your response MUST be a valid JSON array of objects. Do not include markdown code block formatting (like ```json). Just return the raw JSON text.
+Each object in the array must have exactly these keys:
+- "front": A short string representing the front of the flashcard.
+- "back": A string representing the back of the flashcard.
+
+---
+DOCUMENT CONTENT:
+{context_text}
+"""
+        if api_key:
+            try:
+                genai.configure(api_key=api_key)
+                model = genai.GenerativeModel(model_name)
+                response = model.generate_content(prompt)
+                
+                # Parse JSON safely
+                text = response.text.strip()
+                if text.startswith("```"):
+                    match = re.match(r"^```(?:json)?\s*(.*?)\s*```$", text, re.DOTALL | re.IGNORECASE)
+                    if match:
+                        text = match.group(1).strip()
+                
+                return json.loads(text)[:5]
+            except Exception as e:
+                print(f"Error generating flashcards: {{str(e)}}")
+                return self._fallback_flashcards(documents, metadatas)
+        else:
+            return self._fallback_flashcards(documents, metadatas)
+
+    def _fallback_flashcards(self, documents: List[str], metadatas: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+        flashcards = []
+        for i, (text, meta) in enumerate(zip(documents[:5], metadatas[:5])):
+            source = os.path.basename(meta.get("source", "Document"))
+            page = meta.get("page", 0) + 1
+            flashcards.append({
+                "front": f"Key Concept from {source} (Page {page})",
+                "back": text[:180] + "..."
+            })
+        return flashcards
+
+    def extract_glossary(self, api_key: str = None, model_name: str = "gemini-2.5-flash") -> List[Dict[str, str]]:
+        """
+        Retrieves document content and extracts a glossary of the 6 most important terms and definitions.
+        """
+        if not self.vector_store:
+            if os.path.exists(DB_DIR):
+                self.vector_store = Chroma(
+                    persist_directory=DB_DIR,
+                    embedding_function=self.embeddings
+                )
+            else:
+                return []
+                
+        try:
+            results = self.vector_store.get(limit=6)
+            documents = results.get("documents", [])
+            metadatas = results.get("metadatas", [])
+            
+            if not documents:
+                return []
+                
+            context_text = ""
+            for text, meta in zip(documents, metadatas):
+                page = meta.get("page", 0) + 1
+                source = os.path.basename(meta.get("source", "Document"))
+                context_text += f"\n[File: {source}, Page: {page}]\n{text}\n"
+        except Exception:
+            return []
+            
+        prompt = f"""
+You are an expert document indexer. Extract a glossary of the 6 most important terms, acronyms, or concepts from the provided document.
+For each term, provide its name and a concise definition based on the document.
+
+Your response MUST be a valid JSON array of objects. Do not include markdown code block formatting (like ```json). Just return the raw JSON text.
+Each object in the array must have exactly these keys:
+- "term": The name of the term.
+- "definition": A brief definition.
+
+---
+DOCUMENT CONTENT:
+{context_text}
+"""
+        if api_key:
+            try:
+                genai.configure(api_key=api_key)
+                model = genai.GenerativeModel(model_name)
+                response = model.generate_content(prompt)
+                
+                # Parse JSON safely
+                text = response.text.strip()
+                if text.startswith("```"):
+                    match = re.match(r"^```(?:json)?\s*(.*?)\s*```$", text, re.DOTALL | re.IGNORECASE)
+                    if match:
+                        text = match.group(1).strip()
+                
+                return json.loads(text)[:6]
+            except Exception as e:
+                print(f"Error generating glossary: {{str(e)}}")
+                return self._fallback_glossary(documents, metadatas)
+        else:
+            return self._fallback_glossary(documents, metadatas)
+
+    def _fallback_glossary(self, documents: List[str], metadatas: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+        glossary = []
+        for i, (text, meta) in enumerate(zip(documents[:6], metadatas[:6])):
+            # Simple keyword extraction mock
+            words = [w for w in text.split() if len(w) > 5 and w.istitle()]
+            term = words[0] if words else f"Term {i+1}"
+            glossary.append({
+                "term": term,
+                "definition": text[:150] + "..."
+            })
+        return glossary

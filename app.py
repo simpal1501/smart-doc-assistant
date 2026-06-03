@@ -481,19 +481,11 @@ def convert_chat_to_markdown(history):
 
 # Read API Key from environment variable permanently
 api_key = os.getenv("GEMINI_API_KEY", "")
+# Default to standard high-speed flash model
+selected_model = "gemini-2.5-flash"
 
 # Sidebar Content
 with st.sidebar:
-    st.markdown("---")
-    st.markdown("<div class='sidebar-header'>AI Settings</div>", unsafe_allow_html=True)
-    # AI Model Selector
-    selected_model = st.selectbox(
-        "Reasoning Model",
-        ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-pro", "gemini-3.5-flash"],
-        index=0,
-        help="Switch between flash models for speed, or pro models for deep analysis."
-    )
-    
     st.markdown("---")
     st.markdown("<div class='sidebar-header'>Database Manager</div>", unsafe_allow_html=True)
     

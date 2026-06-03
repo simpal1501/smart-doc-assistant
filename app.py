@@ -1,6 +1,7 @@
 import streamlit as st
 import os
 import time
+import html
 from dotenv import load_dotenv
 from rag_engine import RAGEngine
 
@@ -485,7 +486,7 @@ else:
                                 Page {cite['page']} • File: {cite['source']}
                             </div>
                             <div class='citation-text'>
-                                {cite['text']}
+                                {html.escape(cite['text'])}
                             </div>
                         </div>
                         """
@@ -596,7 +597,7 @@ if query := st.chat_input("Ask a question about your uploaded document..."):
                     Page {page} • File: {os.path.basename(doc.metadata.get('source', 'Doc'))}
                 </div>
                 <div class='citation-text'>
-                    {doc.page_content}
+                    {html.escape(doc.page_content)}
                 </div>
             </div>
             """

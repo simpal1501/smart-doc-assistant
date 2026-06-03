@@ -479,24 +479,14 @@ def convert_chat_to_markdown(history):
         md_text += "---\n\n"
     return md_text
 
-# Initialize api_key variable
-api_key = ""
+# Read API Key from environment variable permanently
+api_key = os.getenv("GEMINI_API_KEY", "")
 
 # Sidebar Content
 with st.sidebar:
     st.markdown("---")
     st.markdown("<div class='sidebar-header'>AI Settings</div>", unsafe_allow_html=True)
-    # 1. API Key Input
-    api_key_input = st.text_input(
-        "Gemini API Key",
-        type="password",
-        value=os.getenv("GEMINI_API_KEY", ""),
-        placeholder="Paste your API key here...",
-        help="Paste your Gemini API key here. If left empty, the application will run in offline simulation mode."
-    )
-    api_key = api_key_input.strip()
-
-    # 2. AI Model Selector
+    # AI Model Selector
     selected_model = st.selectbox(
         "Reasoning Model",
         ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-pro", "gemini-3.5-flash"],

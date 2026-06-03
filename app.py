@@ -153,7 +153,7 @@ st.markdown("""
         color: #FFFFFF !important;
     }
     
-    /* Custom Download Button styling (override standard streamlit styling for secondary action) */
+    /* Custom Download Button styling */
     div[data-testid="stDownloadButton"] button {
         background: rgba(18, 24, 38, 0.6) !important;
         color: #92EFFD !important;
@@ -431,86 +431,72 @@ if not st.session_state.uploaded_filename:
     w1, w2, w3 = st.columns(3)
     
     with w1:
-        st.markdown("""
-        <div class="welcome-card">
-            <div class="welcome-icon">📤</div>
-            <h4>1. Upload PDF</h4>
-            <p style='color: #8D99AE; font-size: 0.9rem;'>Upload your study material, textbook, or certificate PDF in the left sidebar panel.</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown("""<div class="welcome-card">
+<div class="welcome-icon">📤</div>
+<h4>1. Upload PDF</h4>
+<p style='color: #8D99AE; font-size: 0.9rem;'>Upload your study material, textbook, or certificate PDF in the left sidebar panel.</p>
+</div>""", unsafe_allow_html=True)
         
     with w2:
-        st.markdown("""
-        <div class="welcome-card">
-            <div class="welcome-icon">⚙️</div>
-            <h4>2. Vector Indexing</h4>
-            <p style='color: #8D99AE; font-size: 0.9rem;'>The RAG Engine splits text into overlapping semantic blocks and stores them in ChromaDB.</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown("""<div class="welcome-card">
+<div class="welcome-icon">⚙️</div>
+<h4>2. Vector Indexing</h4>
+<p style='color: #8D99AE; font-size: 0.9rem;'>The RAG Engine splits text into overlapping semantic blocks and stores them in ChromaDB.</p>
+</div>""", unsafe_allow_html=True)
         
     with w3:
-        st.markdown("""
-        <div class="welcome-card">
-            <div class="welcome-icon">💬</div>
-            <h4>3. Ask & Verify</h4>
-            <p style='color: #8D99AE; font-size: 0.9rem;'>Chat with your document and get verified answers with page numbers and relevance metrics.</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown("""<div class="welcome-card">
+<div class="welcome-icon">💬</div>
+<h4>3. Ask & Verify</h4>
+<p style='color: #8D99AE; font-size: 0.9rem;'>Chat with your document and get verified answers with page numbers and relevance metrics.</p>
+</div>""", unsafe_allow_html=True)
 else:
     # Main Page tabs
     tab1, tab2, tab3 = st.tabs(["💬 Conversation Chat", "📋 Document Summary", "📝 Interactive Study Quiz"])
     
     with tab1:
-        # Render Custom Styled Chat Area
+        # Render Custom Styled Chat Area (Notice: all multiline HTML strings are aligned flush-left to prevent Markdown codeblock issues)
         for message in st.session_state.chat_history:
             role = message["role"]
             content = message["content"]
             
             if role == "user":
-                st.markdown(f"""
-                <div class="chat-row user-row">
-                    <div class="chat-bubble user-bubble">
-                        {content}
-                    </div>
-                    <div class="chat-avatar user-avatar">👤</div>
-                </div>
-                """, unsafe_allow_html=True)
+                st.markdown(f"""<div class="chat-row user-row">
+<div class="chat-bubble user-bubble">
+{content}
+</div>
+<div class="chat-avatar user-avatar">👤</div>
+</div>""", unsafe_allow_html=True)
             else:
                 citations_html = ""
                 if "citations" in message and message["citations"]:
                     for cite in message["citations"]:
-                        citations_html += f"""
-                        <div class='citation-container'>
-                            <span class='source-tag'>Citation {cite['index']}</span>
-                            <div style='margin-top: 8px; font-weight: 600; font-size: 0.8rem; color: #8D99AE;'>
-                                Page {cite['page']} • File: {cite['source']}
-                            </div>
-                            <div class='citation-text'>
-                                {html.escape(cite['text'])}
-                            </div>
-                        </div>
-                        """
+                        citations_html += f"""<div class='citation-container'>
+<span class='source-tag'>Citation {cite['index']}</span>
+<div style='margin-top: 8px; font-weight: 600; font-size: 0.8rem; color: #8D99AE;'>
+Page {cite['page']} • File: {cite['source']}
+</div>
+<div class='citation-text'>
+{html.escape(cite['text'])}
+</div>
+</div>"""
                 
                 citations_block = ""
                 if citations_html:
-                    citations_block = f"""
-                    <details style='margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 10px;'>
-                        <summary style='cursor: pointer; color: #92EFFD; font-size: 0.85rem; font-weight: 600;'>
-                            🔍 View Citations & Source Passages
-                        </summary>
-                        {citations_html}
-                    </details>
-                    """
+                    citations_block = f"""<details style='margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 10px;'>
+<summary style='cursor: pointer; color: #92EFFD; font-size: 0.85rem; font-weight: 600;'>
+🔍 View Citations & Source Passages
+</summary>
+{citations_html}
+</details>"""
                     
-                st.markdown(f"""
-                <div class="chat-row assistant-row">
-                    <div class="chat-avatar assistant-avatar">🧠</div>
-                    <div class="chat-bubble assistant-bubble">
-                        {content}
-                        {citations_block}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                st.markdown(f"""<div class="chat-row assistant-row">
+<div class="chat-avatar assistant-avatar">🧠</div>
+<div class="chat-bubble assistant-bubble">
+{content}
+{citations_block}
+</div>
+</div>""", unsafe_allow_html=True)
                 
         # Export Button at the bottom of the chat conversation
         if st.session_state.chat_history:
@@ -557,14 +543,12 @@ if query := st.chat_input("Ask a question about your uploaded document..."):
         st.error("Please upload a PDF file in the sidebar before asking questions!")
     else:
         # User message display
-        st.markdown(f"""
-        <div class="chat-row user-row">
-            <div class="chat-bubble user-bubble">
-                {query}
-            </div>
-            <div class="chat-avatar user-avatar">👤</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f"""<div class="chat-row user-row">
+<div class="chat-bubble user-bubble">
+{query}
+</div>
+<div class="chat-avatar user-avatar">👤</div>
+</div>""", unsafe_allow_html=True)
         st.session_state.chat_history.append({"role": "user", "content": query})
         
         # Assistant generation
@@ -589,40 +573,34 @@ if query := st.chat_input("Ask a question about your uploaded document..."):
         for i, doc_score in enumerate(retrieved_docs):
             doc, score = doc_score
             page = doc.metadata.get("page", 0) + 1
-            citations_html += f"""
-            <div class='citation-container'>
-                <span class='source-tag'>Citation {i+1}</span>
-                <span class='relevance-badge'>Distance Score: {score:.4f}</span>
-                <div style='margin-top: 8px; font-weight: 600; font-size: 0.8rem; color: #8D99AE;'>
-                    Page {page} • File: {os.path.basename(doc.metadata.get('source', 'Doc'))}
-                </div>
-                <div class='citation-text'>
-                    {html.escape(doc.page_content)}
-                </div>
-            </div>
-            """
+            citations_html += f"""<div class='citation-container'>
+<span class='source-tag'>Citation {i+1}</span>
+<span class='relevance-badge'>Distance Score: {score:.4f}</span>
+<div style='margin-top: 8px; font-weight: 600; font-size: 0.8rem; color: #8D99AE;'>
+Page {page} • File: {os.path.basename(doc.metadata.get('source', 'Doc'))}
+</div>
+<div class='citation-text'>
+{html.escape(doc.page_content)}
+</div>
+</div>"""
             
         citations_block = ""
         if citations_html:
-            citations_block = f"""
-            <details style='margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 10px;'>
-                <summary style='cursor: pointer; color: #92EFFD; font-size: 0.85rem; font-weight: 600;'>
-                    🔍 View Citations & Source Passages
-                </summary>
-                {citations_html}
-            </details>
-            """
+            citations_block = f"""<details style='margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 10px;'>
+<summary style='cursor: pointer; color: #92EFFD; font-size: 0.85rem; font-weight: 600;'>
+🔍 View Citations & Source Passages
+</summary>
+{citations_html}
+</details>"""
             
         # Display assistant response
-        st.markdown(f"""
-        <div class="chat-row assistant-row">
-            <div class="chat-avatar assistant-avatar">🧠</div>
-            <div class="chat-bubble assistant-bubble">
-                {answer}
-                {citations_block}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f"""<div class="chat-row assistant-row">
+<div class="chat-avatar assistant-avatar">🧠</div>
+<div class="chat-bubble assistant-bubble">
+{answer}
+{citations_block}
+</div>
+</div>""", unsafe_allow_html=True)
         
         # Save to session history
         st.session_state.chat_history.append({

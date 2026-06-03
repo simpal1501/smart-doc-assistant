@@ -435,7 +435,11 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # Initialize Session States (Checking attributes prevents hot-reload AttributeError tracebacks)
-if "rag_engine" not in st.session_state or not hasattr(st.session_state.rag_engine, "generate_flashcards"):
+if "rag_engine" not in st.session_state or not hasattr(st.session_state.rag_engine, "get_indexed_files") or not hasattr(st.session_state.rag_engine, "generate_flashcards"):
+    import importlib
+    import rag_engine
+    importlib.reload(rag_engine)
+    from rag_engine import RAGEngine
     with st.spinner("Initializing Local Embeddings Model... Please wait (takes a moment on first launch)"):
         st.session_state.rag_engine = RAGEngine()
         

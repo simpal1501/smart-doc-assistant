@@ -76,7 +76,9 @@ Streamlit will automatically host the application locally and open a browser win
 ## 💡 How to Add Your API Key
 1. Go to [Google AI Studio](https://aistudio.google.com/).
 2. Click **Create API Key**.
-3. Copy the key and paste it directly into the password field inside the **Settings Panel** sidebar of the running DocuMind application.
+3. Set the key:
+   - **Locally:** Create a `.env` file in the project root and add `GEMINI_API_KEY=your_key`.
+   - **Streamlit Cloud:** Add a Secret named `GEMINI_API_KEY` with your key in the Streamlit App Settings -> Secrets panel.
 
 ---
 

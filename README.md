@@ -2,7 +2,7 @@
 
 DocuMind AI is a state-of-the-art **Retrieval-Augmented Generation (RAG)** assistant built in Python. It allows users to upload technical documents, PDFs, or books and engage in a contextual chat. The system is designed to combat AI hallucinations by performing semantic search over documents using local vector embeddings, feeding only relevant context to the Large Language Model.
 
-🚀 **Live Deployed App:** [smart-doc-assistantgit-j5l6amuj89dkfysbyndqsv.streamlit.app](https://smart-doc-assistantgit-j5l6amuj89dkfysbyndqsv.streamlit.app/)
+🚀 **Live Deployed App:** [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://smart-doc-assistantgit-j5l6amuj89dkfysbyndqsv.streamlit.app/)
 
 ---
 
